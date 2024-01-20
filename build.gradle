@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'co.uzzu.dotenv.gradle' version '4.0.0'
+}
+
+group 'fooddiary'
+version '1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.24'
+    annotationProcessor 'org.projectlombok:lombok:1.18.24'
+    implementation 'com.konghq:unirest-java:3.14.5'
+    testImplementation 'junit:junit:4.13.1'
+}
+
+tasks.register('buildZip', Zip) {
+    group = 'build'
+    from project.sourceSets.main.allSource
+    from configurations.runtimeClasspath
+    archiveFileName = 'build.zip'
+}
+
+tasks.register('deploy', Exec) {
+    group = 'deploy'
+    dependsOn("buildZip")
+    commandLine 'yc', 'serverless', 'function', 'version', 'create',
+            '--function-name', deployFunctionName,
+            '--runtime', deployRuntime,
+            '--entrypoint', deployEntrypoint,
+            '--memory', deployMemory,
+            '--execution-timeout', deployExecutionTimeout,
+            '--source-path', tasks.getByName('buildZip').archiveFile.get().asFile.absolutePath,
+            '--environment', "API_KEY=${env.USDA_API_KEY.value}"
+}
