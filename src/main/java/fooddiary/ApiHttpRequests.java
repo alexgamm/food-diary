@@ -1,28 +1,19 @@
 package fooddiary;
 
-import com.google.gson.Gson;
 import fooddiary.model.api.ApiSearchResponse;
+import fooddiary.model.api.DataType;
 import fooddiary.model.api.Food;
-import kong.unirest.HttpResponse;
-import kong.unirest.JsonNode;
-import kong.unirest.Unirest;
 
 import java.util.Comparator;
 import java.util.List;
 
 public class ApiHttpRequests {
     private final static String API_KEY = System.getenv("API_KEY");
-    private final static String API_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search?";
-    private final static Gson GSON = new Gson();
+    private final UsdaApiClient usdaApiClient = new UsdaApiClient(API_KEY);
 
-    public ApiSearchResponse findFood(String name, float grams, float energyValue) {
-        HttpResponse<JsonNode> jsonResponse = Unirest.get(API_SEARCH_URL)
-                .queryString("api_key", API_KEY)
-                .queryString("query", name)
-                .asJson();
-        ApiSearchResponse apiSearchResponse = GSON.fromJson(jsonResponse.getBody().toString(), ApiSearchResponse.class);
-        List<Food> foods = apiSearchResponse.getFoods();
-        foods.removeIf(food -> food.getNutrientValue("Energy").isEmpty());
+    public FoodDto findFood(String name, float grams, float energyValue) {
+        ApiSearchResponse apiSearchResponse = usdaApiClient.search(name, null);
+        List<Food>foods = apiSearchResponse.getFoodsWithEnergy();
         Food searchedFood = foods.stream()
                 .min(Comparator.comparing(food -> Math.abs(
                         food.getNutrientValue("Energy").orElse(0f) - energyValue
@@ -35,7 +26,7 @@ public class ApiHttpRequests {
                     energyValue / 100 * grams,
                     searchedFood
                             .getNutrientValue("Total lipid (fat)")
-                            .map(value -> value/ 100 * grams)
+                            .map(value -> value / 100 * grams)
                             .orElse(0f),
                     searchedFood
                             .getNutrientValue("Protein").orElse(0f) / 100 * grams,
@@ -43,19 +34,29 @@ public class ApiHttpRequests {
             );
         }
         System.out.println(eatenFood.getName() + " Carbs: " + eatenFood.getCarbohydrate() + " Energy: " + eatenFood.getEnergy());
-        return new ApiSearchResponse();
+        return eatenFood;
     }
 
-}
+    public FoodDto findBasicFood(String name, float grams) {
+        ApiSearchResponse apiSearchResponse = usdaApiClient.search(name, DataType.Foundation);
+        FoodDto eatenFood = new FoodDto(
+                name,
+                apiSearchResponse.getAverageValueOfNutrient("Energy") / 100 * grams,
+                apiSearchResponse.getAverageValueOfNutrient("Total lipid (fat)") / 100 * grams,
+                apiSearchResponse.getAverageValueOfNutrient("Protein") / 100 * grams,
+                apiSearchResponse.getAverageValueOfNutrient("Carbohydrate, by difference") / 100 * grams
+        );
+        System.out.println(eatenFood.getName() + " Carbs: " + eatenFood.getCarbohydrate() + " Energy: " + eatenFood.getEnergy() + " Protein: " + eatenFood.getProtein());
+        return eatenFood;
+    }
 
-//public ApiSearchResponse findBasicFood(String name, float grams) {
-//
-//
-//}
-
-//    public ApiSearchResponse findHomeFood (){
+    //    public ApiSearchResponse findHomeFood (){
 //
 //    }
+}
+
+
+
 
 
 
