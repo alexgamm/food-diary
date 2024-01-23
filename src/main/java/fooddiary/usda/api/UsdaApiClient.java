@@ -1,7 +1,7 @@
-package fooddiary;
+package fooddiary.usda.api;
 
-import fooddiary.model.api.ApiSearchResponse;
-import fooddiary.model.api.DataType;
+import fooddiary.usda.api.model.ApiSearchResponse;
+import fooddiary.usda.api.model.DataType;
 import kong.unirest.GetRequest;
 import kong.unirest.Unirest;
 import lombok.RequiredArgsConstructor;

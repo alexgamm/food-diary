@@ -1,4 +1,4 @@
-package fooddiary.model.api;
+package fooddiary.usda.api.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
