@@ -21,6 +21,6 @@ public class UsdaApiClient {
         if (dataType != null) {
             getRequest.queryString("dataType", dataType);
         }
-      return getRequest.asObject(ApiSearchResponse.class).getBody();
+        return getRequest.asObject(ApiSearchResponse.class).getBody();
     }
 }

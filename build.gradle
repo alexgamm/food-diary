@@ -1,6 +1,8 @@
 plugins {
     id 'java'
+    id 'maven-publish'
     id 'co.uzzu.dotenv.gradle' version '4.0.0'
+    id 'io.freefair.lombok' version '8.4'
 }
 
 group 'fooddiary'
@@ -15,17 +17,56 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
     implementation 'com.konghq:unirest-java:3.14.5'
     implementation 'org.jetbrains:annotations:24.1.0'
-    implementation platform('tech.ydb:ydb-sdk-bom:2.1.10')
-    implementation 'tech.ydb:ydb-sdk-table'
-    implementation 'tech.ydb.auth:yc-auth-provider'
+    implementation 'com.google.cloud:google-cloud-translate:2.6.0'
+    implementation 'org.jsoup:jsoup:1.15.3'
     implementation 'ch.qos.logback:logback-classic:1.4.14'
-    testImplementation 'junit:junit:4.13.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
+    testImplementation 'org.mockito:mockito-core:5.10.0'
+}
+
+publishing {
+    publications {
+        local(MavenPublication) {
+            from components.java
+
+            pom.withXml {
+                asNode().dependencies.dependency.each {
+                    it.scope*.value = 'compile'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'buildRepo'
+            url = layout.buildDirectory.dir("repo")
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    options.encoding = 'UTF-8'
 }
 
 tasks.register('buildZip', Zip) {
     group = 'build'
-    from project.sourceSets.main.allSource
-    from configurations.runtimeClasspath
+
+    dependsOn publish
+    from "${project.layout.buildDirectory.get().asFile}/publications/local/pom-default.xml"
+    rename 'pom-default.xml', 'pom.xml'
+
+    dependsOn delombok
+    from(delombok.target) {
+        into("src/main/java")
+    }
+
     archiveFileName = 'build.zip'
 }
 
@@ -38,6 +79,12 @@ tasks.register('deploy', Exec) {
             '--entrypoint', deployEntrypoint,
             '--memory', deployMemory,
             '--execution-timeout', deployExecutionTimeout,
-            '--source-path', tasks.getByName('buildZip').archiveFile.get().asFile.absolutePath,
-            '--environment', "API_KEY=${env.USDA_API_KEY.value}"
+            '--source-path', tasks.buildZip.archiveFile.get().asFile.absolutePath,
+            '--service-account-id', env.SERVICE_ACCOUNT_ID.value,
+            '--environment', "USDA_API_KEY=${env.USDA_API_KEY.value}",
+            '--environment', "GOOGLE_API_KEY=${env.GOOGLE_API_KEY.value}",
+            '--environment', "GET_FOOD_FUNCTION_ID=${env.GET_FOOD_FUNCTION_ID.value}",
+            '--environment', "ADD_FOOD_FUNCTION_ID=${env.ADD_FOOD_FUNCTION_ID.value}",
+            '--environment', "FAT_SECRET_SEARCH_URL=${env.FAT_SECRET_SEARCH_URL.value}"
+
 }

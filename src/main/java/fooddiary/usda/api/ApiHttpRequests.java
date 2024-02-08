@@ -1,20 +1,22 @@
 package fooddiary.usda.api;
 
-import fooddiary.FoodDto;
+import fooddiary.database.FoodRecord;
 import fooddiary.usda.api.model.ApiSearchResponse;
 import fooddiary.usda.api.model.DataType;
 import fooddiary.usda.api.model.Food;
+import lombok.RequiredArgsConstructor;
 
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+@RequiredArgsConstructor
 public class ApiHttpRequests {
-    private final static String API_KEY = System.getenv("API_KEY");
-    private final UsdaApiClient usdaApiClient = new UsdaApiClient(API_KEY);
 
-    public FoodDto findFood(String name, float grams, float energyValue) {
+    private final UsdaApiClient usdaApiClient;
+
+    public FoodRecord findFood(String name, float grams, float energyValue) {
         ApiSearchResponse apiSearchResponse = usdaApiClient.search(name, null);
         List<Food> foods = apiSearchResponse.getFoodsWithEnergy();
         Food searchedFood = foods.stream()
@@ -24,9 +26,9 @@ public class ApiHttpRequests {
                 .orElse(null);
 
         if (searchedFood == null) {
-            return new FoodDto(UUID.randomUUID().toString(), name, new Date(), grams, 0, 0, 0, 0);
+            return new FoodRecord(UUID.randomUUID().toString(), name, new Date(), grams, 0, 0, 0, 0);
         }
-        return new FoodDto(
+        return new FoodRecord(
                 UUID.randomUUID().toString(),
                 name,
                 new Date(),
@@ -42,18 +44,18 @@ public class ApiHttpRequests {
         );
     }
 
-    public FoodDto findBasicFood(String name, float grams) {
+    public FoodRecord findBasicFood(String name, float grams) {
         ApiSearchResponse apiSearchResponse = usdaApiClient.search(name, DataType.Foundation);
         return calculateEatenFood(apiSearchResponse, name, grams);
     }
 
-    public FoodDto findHomeFood(String name, float grams) {
+    public FoodRecord findHomeFood(String name, float grams) {
         ApiSearchResponse apiSearchResponse = usdaApiClient.search(name, null);
         return calculateEatenFood(apiSearchResponse, name, grams);
     }
 
-    private FoodDto calculateEatenFood(ApiSearchResponse apiSearchResponse, String foodName, float grams) {
-        return new FoodDto(
+    private FoodRecord calculateEatenFood(ApiSearchResponse apiSearchResponse, String foodName, float grams) {
+        return new FoodRecord(
                 UUID.randomUUID().toString(),
                 foodName,
                 new Date(),
