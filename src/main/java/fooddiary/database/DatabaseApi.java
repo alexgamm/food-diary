@@ -15,6 +15,7 @@ public class DatabaseApi {
     private static final String CLOUD_URL = "https://functions.yandexcloud.net/";
     private static final String GET_FOOD_URL = CLOUD_URL + System.getenv("GET_FOOD_FUNCTION_ID");
     private static final String ADD_FOOD_URL = CLOUD_URL + System.getenv("ADD_FOOD_FUNCTION_ID");
+    private static final String DELETE_FOOD_URL = CLOUD_URL + System.getenv("DELETE_FOOD_FUNCTION_ID");
 
     public void addFood(FoodRecord record) throws DatabaseApiException {
         HttpResponse<Empty> response = Unirest.post(ADD_FOOD_URL)
@@ -36,4 +37,11 @@ public class DatabaseApi {
         return List.of(response.getBody());
     }
 
+    public void deleteFood() throws DatabaseApiException {
+        HttpResponse<Empty> response = Unirest.delete(DELETE_FOOD_URL)
+                .asEmpty();
+        if (!response.isSuccess()) {
+            throw new DatabaseApiException();
+        }
+    }
 }

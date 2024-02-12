@@ -3,12 +3,7 @@ package fooddiary;
 import fooddiary.database.DatabaseApi;
 import fooddiary.database.FoodRecord;
 import fooddiary.database.exception.DatabaseApiException;
-import fooddiary.google.api.TranslationRequest;
-import fooddiary.usda.api.ApiHttpRequests;
-import fooddiary.usda.api.UsdaApiClient;
-import fooddiary.usda.api.model.ApiSearchResponse;
-import fooddiary.usda.api.model.Food;
-import fooddiary.usda.api.model.FoodNutrient;
+import fooddiary.fatsecret.FoodSearch;
 import org.junit.jupiter.api.Test;
 import yacloud.Event;
 import yacloud.Request;
@@ -20,9 +15,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-import static fooddiary.usda.api.model.DataType.Foundation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 public class HandlerTest {
@@ -30,9 +25,9 @@ public class HandlerTest {
     @Test
     public void invalidCommand_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null, null);
+        Handler handler = new Handler(null, null);
         Event event = new Event()
-                .request(new Request().command("блюдо жаренная картошка 100"));
+                .request(new Request().command("жаренная картошка 100"));
         //act
         Response response = handler.apply(event);
         //assert
@@ -42,9 +37,9 @@ public class HandlerTest {
     @Test
     public void addFoodWithoutFoodName_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null, null);
+        Handler handler = new Handler(null, null);
         Event event = new Event()
-                .request(new Request().command("добавить блюдо 100 грамм"));
+                .request(new Request().command("добавить 100 грамм"));
         //act
         Response response = handler.apply(event);
         //assert
@@ -52,26 +47,11 @@ public class HandlerTest {
     }
 
     @Test
-    public void addFoodTranslationFailed_getTranslationErrorResponse() {
+    public void addFoodWithoutCaloriesWithoutGramWord_getInvalidCommandResponse() {
         //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(anyString())).thenThrow(new RuntimeException());
-        Handler handler = new Handler(null, null, translationRequest);
+        Handler handler = new Handler(null, null);
         Event event = new Event()
-                .request(new Request().command("добавить блюдо жаренная картошка 100 грамм"));
-        //act
-        Response response = handler.apply(event);
-        //assert
-        assertEquals("Что-то гугл переводчик шалит. Повтори запрос еще раз", response.response().text());
-    }
-
-    @Test
-    public void addDishWithoutGramWord_getInvalidCommandResponse() {
-        //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        Handler handler = new Handler(null, null, translationRequest);
-        Event event = new Event()
-                .request(new Request().command("добавить блюдо жаренная картошка 100"));
+                .request(new Request().command("добавить жаренная картошка 100"));
         //act
         Response response = handler.apply(event);
         //assert
@@ -79,148 +59,113 @@ public class HandlerTest {
     }
 
     @Test
-    public void addUnknownDish_saveFoodAndGetUnknownDishResponse() {
+    public void addFoodWithoutGramWord_getInvalidCommandResponse() {
         //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("тапок"))).thenReturn("slipper");
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        when(usdaApiClient.search(eq("slipper"), eq(null))).thenReturn(new ApiSearchResponse(List.of()));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
+        Handler handler = new Handler(null, null);
         Event event = new Event()
-                .request(new Request().command("добавить блюдо тапок 100 грамм"));
+                .request(new Request().command("добавить жаренная картошка 100"));
         //act
         Response response = handler.apply(event);
         //assert
-        verify(databaseApi).addFood(any());
+        assertEquals("Упс, что-то не так с твоим запросом. Скажи еще раз", response.response().text());
+    }
+
+    @Test
+    public void addUnknownFoodWithoutCalories_getUnknownDishResponse() {
+        //arrange
+        FoodSearch foodSearch = mock(FoodSearch.class);
+        when(foodSearch.findFood(eq("тапок"), eq(100))).thenReturn(null);
+        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Handler handler = new Handler(databaseApi, foodSearch);
+        Event event = new Event()
+                .request(new Request().command("добавить тапок 100 грамм"));
+        //act
+        Response response = handler.apply(event);
+        //assert
+        verifyNoInteractions(databaseApi);
         assertEquals(
-                "К сожалению, slipper или как вы называете тапок нет в моём списке",
+                "К сожалению, тапок найти не удалось",
                 response.response().text()
         );
     }
 
     @Test
-    public void addDish_saveFoodAndSuccessfulResponse() {
+    public void addFoodWithoutCalories_saveFoodAndSuccessfulResponse() throws DatabaseApiException {
         //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("куриный салат"))).thenReturn("chicken salad");
         DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        List<Food> foods = List.of(new Food(List.of(
-                new FoodNutrient("Carbohydrate, by difference", 20),
-                new FoodNutrient("Energy", 100))
+        FoodSearch foodSearch = mock(FoodSearch.class);
+        when(foodSearch.findFood(eq("грибочки"), eq(150f))).thenReturn(new FoodRecord(
+                null,
+                "грибы",
+                null,
+                150,
+                50,
+                0,
+                3,
+                10
         ));
-        when(usdaApiClient.search(eq("chicken salad"), eq(null))).thenReturn(new ApiSearchResponse(foods));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
+
+        Handler handler = new Handler(databaseApi, foodSearch);
         Event event = new Event()
-                .request(new Request().command("добавить блюдо куриный салат 100 грамм"));
+                .request(new Request().command("добавить грибочки 150 грамм"));
         //act
         Response response = handler.apply(event);
         //assert
         verify(databaseApi).addFood(any());
         assertEquals(
-                "Успешно добавила куриный салат в дневник питания",
+                "Успешно добавила грибы или как вы это называете грибочки в дневник питания",
                 response.response().text()
         );
     }
 
     @Test
-    public void addUnknownGroceryFood_saveFoodAndGetUnknownGroceryFoodResponse() {
+    public void addUnknownFoodWithCalories_getUnknownFoodResponse() {
         //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("любятово"))).thenReturn("lubyatovo");
+        FoodSearch foodSearch = mock(FoodSearch.class);
+        when(foodSearch.findFood(eq("тапок"), eq(100f), eq(50f))).thenReturn(null);
         DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        when(usdaApiClient.search(eq("lubyatovo"), eq(null))).thenReturn(new ApiSearchResponse(List.of()));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
+        Handler handler = new Handler(databaseApi, foodSearch);
         Event event = new Event()
-                .request(new Request().command("добавить любятово 100 грамм 200 калорий"));
+                .request(new Request().command("добавить тапок 100 грамм 50 калорий"));
         //act
         Response response = handler.apply(event);
         //assert
-        verify(databaseApi).addFood(any());
+        verifyNoInteractions(databaseApi);
         assertEquals(
-                "К сожалению, lubyatovo или как вы называете любятово нет в моём списке",
+                "К сожалению, тапок найти не удалось",
                 response.response().text()
         );
     }
 
     @Test
-    public void addGroceryFood_saveFoodAndSuccessfulResponse() {
+    public void addFoodWithCalories_saveFoodAndSuccessfulResponse() throws DatabaseApiException {
         //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("вафли"))).thenReturn("wafers");
         DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        List<Food> foods = List.of(new Food(List.of(
-                new FoodNutrient("Carbohydrate, by difference", 50),
-                new FoodNutrient("Energy", 305))
+        FoodSearch foodSearch = mock(FoodSearch.class);
+        when(foodSearch.findFood(eq("вафли"), eq(100f), eq(300f))).thenReturn(new FoodRecord(
+                null,
+                "вафли молочные реки",
+                null,
+                100,
+                300,
+                0,
+                3,
+                10
         ));
-        when(usdaApiClient.search(eq("wafers"), eq(null))).thenReturn(new ApiSearchResponse(foods));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
+        Handler handler = new Handler(databaseApi, foodSearch);
         Event event = new Event()
                 .request(new Request().command("добавить вафли 100 грамм 300 калорий"));
         //act
         Response response = handler.apply(event);
         //assert
-        verify(databaseApi).addFood(any());
+
         assertEquals(
-                "Успешно добавила вафли в дневник питания",
+                "Успешно добавила вафли молочные реки или как вы это называете вафли в дневник питания",
                 response.response().text()
         );
+        verify(databaseApi).addFood(any());
     }
 
-    @Test
-    public void addUnknownBasicFood_saveFoodAndGetUnknownBasicFoodResponse() {
-        //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("гриб"))).thenReturn("mushroom");
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        when(usdaApiClient.search(eq("mushroom"), eq(Foundation))).thenReturn(new ApiSearchResponse(List.of()));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
-        Event event = new Event()
-                .request(new Request().command("добавить гриб 100 грамм"));
-        //act
-        Response response = handler.apply(event);
-        //assert
-        verify(databaseApi).addFood(any());
-        assertEquals(
-                "К сожалению, mushroom или как вы называете гриб нет в моём списке",
-                response.response().text()
-        );
-    }
-
-    @Test
-    public void addBasicFood_saveFoodAndSuccessfulResponse() {
-        //arrange
-        TranslationRequest translationRequest = mock(TranslationRequest.class);
-        when(translationRequest.translate(eq("яйцо"))).thenReturn("egg");
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        UsdaApiClient usdaApiClient = mock(UsdaApiClient.class);
-        List<Food> foods = List.of(new Food(List.of(
-                new FoodNutrient("Carbohydrate, by difference", 0),
-                new FoodNutrient("Energy", 90))
-        ));
-        when(usdaApiClient.search(eq("egg"), eq(Foundation))).thenReturn(new ApiSearchResponse(foods));
-        ApiHttpRequests apiHttpRequests = new ApiHttpRequests(usdaApiClient);
-        Handler handler = new Handler(databaseApi, apiHttpRequests, translationRequest);
-        Event event = new Event()
-                .request(new Request().command("добавить яйцо 100 грамм"));
-        //act
-        Response response = handler.apply(event);
-        //assert
-        verify(databaseApi).addFood(any());
-        assertEquals(
-                "Успешно добавила яйцо в дневник питания",
-                response.response().text()
-        );
-    }
 
     @Test
     public void findEmptyFoodStatsWithDayMonth_getDatabaseErrorResponse() throws DatabaseApiException {
@@ -228,7 +173,7 @@ public class HandlerTest {
         DatabaseApi databaseApi = mock(DatabaseApi.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), Month.NOVEMBER, 15);
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
@@ -247,7 +192,7 @@ public class HandlerTest {
         DatabaseApi databaseApi = mock(DatabaseApi.class);
         LocalDate date = LocalDate.of(2022, Month.NOVEMBER, 15);
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября 2022 года"));
         //act
@@ -276,7 +221,7 @@ public class HandlerTest {
                 1
         ));
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
@@ -284,7 +229,7 @@ public class HandlerTest {
         //assert
         verify(databaseApi).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 процентов белка, 0 процентов жиров, 100 процентов углеводов. Сегодня вы ели: каша, ",
+                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
                 response.response().text()
         );
     }
@@ -305,7 +250,7 @@ public class HandlerTest {
                 1
         ));
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября 2022 года"));
         //act
@@ -313,7 +258,7 @@ public class HandlerTest {
         //assert
         verify(databaseApi).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 процентов белка, 0 процентов жиров, 100 процентов углеводов. Сегодня вы ели: каша, ",
+                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
                 response.response().text()
         );
     }
@@ -325,7 +270,7 @@ public class HandlerTest {
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), Month.NOVEMBER, 15);
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenThrow(DatabaseApiException.class);
         String expectedMessage = "Что-то база данных шалит. Повтори запрос еще раз";
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
@@ -353,7 +298,7 @@ public class HandlerTest {
                 1
         ));
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act
@@ -361,7 +306,7 @@ public class HandlerTest {
         //assert
         verify(databaseApi).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 процентов белка, 0 процентов жиров, 100 процентов углеводов. Сегодня вы ели: каша, ",
+                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
                 response.response().text()
         );
     }
@@ -382,7 +327,7 @@ public class HandlerTest {
                 1
         ));
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела вчера"));
         //act
@@ -390,7 +335,7 @@ public class HandlerTest {
         //assert
         verify(databaseApi).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 процентов белка, 0 процентов жиров, 100 процентов углеводов. Сегодня вы ели: каша, ",
+                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
                 response.response().text()
         );
     }
@@ -411,7 +356,7 @@ public class HandlerTest {
                 1
         ));
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела позавчера"));
         //act
@@ -419,7 +364,7 @@ public class HandlerTest {
         //assert
         verify(databaseApi).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 процентов белка, 0 процентов жиров, 100 процентов углеводов. Сегодня вы ели: каша, ",
+                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
                 response.response().text()
         );
     }
@@ -430,7 +375,7 @@ public class HandlerTest {
         DatabaseApi databaseApi = mock(DatabaseApi.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().getDayOfMonth());
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act
@@ -450,7 +395,7 @@ public class HandlerTest {
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().getDayOfMonth());
         when(databaseApi.findFoodRecordsByDate(eq(date))).thenThrow(new DatabaseApiException());
         String expectedMessage = "Что-то база данных шалит. Повтори запрос еще раз";
-        Handler handler = new Handler(databaseApi, null, null);
+        Handler handler = new Handler(databaseApi, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act

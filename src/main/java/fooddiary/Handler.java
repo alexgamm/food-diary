@@ -3,9 +3,7 @@ package fooddiary;
 import fooddiary.database.DatabaseApi;
 import fooddiary.database.FoodRecord;
 import fooddiary.database.exception.DatabaseApiException;
-import fooddiary.google.api.TranslationRequest;
-import fooddiary.usda.api.ApiHttpRequests;
-import fooddiary.usda.api.UsdaApiClient;
+import fooddiary.fatsecret.FoodSearch;
 import fooddiary.utils.FoodRecordUtils;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +12,6 @@ import yacloud.Event;
 import yacloud.Response;
 import yacloud.TextResponse;
 
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.MonthDay;
 import java.time.format.DateTimeFormatter;
@@ -34,8 +31,7 @@ public class Handler implements Function<Event, Response> {
     public static final DateTimeFormatter FULL_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ru"));
     public static final DateTimeFormatter DATE_MONTH_FORMATTER = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"));
     private final DatabaseApi databaseApi;
-    private final ApiHttpRequests apiHttpRequests;
-    private final TranslationRequest translationRequest;
+    private final FoodSearch foodSearch;
     private static final String DB_ERROR_RESPONSE = "К сожалению, ничего найти не удалось";
     private static final String SQL_EXCEPTION_RESPONSE = "Что-то база данных шалит. Повтори запрос еще раз";
     private static final String INVALID_COMMAND_RESPONSE = "Упс, что-то не так с твоим запросом. Скажи еще раз";
@@ -45,8 +41,7 @@ public class Handler implements Function<Event, Response> {
 
     public Handler() {
         this.databaseApi = new DatabaseApi();
-        this.apiHttpRequests = new ApiHttpRequests(new UsdaApiClient(System.getenv("USDA_API_KEY")));
-        this.translationRequest = new TranslationRequest();
+        this.foodSearch = new FoodSearch();
     }
 
     @Override
@@ -56,70 +51,30 @@ public class Handler implements Function<Event, Response> {
 
         for (String word : commandWords) {
             if (word.equals("добавить")) {
-                // попроси дневник питания добавить (блюдо) морковь 100 грамм (60 калорий)
+                // попроси дневник питания добавить морковь 100 грамм (60 калорий)
                 String foodName = getFoodName(command);
                 if (foodName == null) {
                     return getResponse(event, INVALID_COMMAND_RESPONSE);
                 }
-                String translatedFood;
-                try {
-                    translatedFood = translationRequest.translate(foodName);
-                } catch (Throwable e) {
-                    return getResponse(event, "Что-то гугл переводчик шалит. Повтори запрос еще раз");
-                }
-
-                for (String commandWord : commandWords) {
-                    if (commandWord.equals("блюдо")) {
-                        // попроси дневник питания добавить блюдо жаренная картошка 100 грамм
-                        float grams = getGrams(commandWords); // TODO Validate grams, throw illegal arg ex or return false
-                        if (grams <= 0) {
-                            return getResponse(event, INVALID_COMMAND_RESPONSE);
-                        }
-                        FoodRecord foodRecord = apiHttpRequests.findHomeFood(translatedFood, grams);
-                        try {
-                            databaseApi.addFood(foodRecord);
-                        } catch (DatabaseApiException e) {
-                            return getResponse(event, SQL_EXCEPTION_RESPONSE);
-                        }
-                        if (foodRecord.getKcal() == 0 && foodRecord.getCarbohydrate() == 0) {
-                            return getResponse(event, "К сожалению, " + translatedFood + " или как вы называете " + foodName + " нет в моём списке");
-                        }
-                        return getResponse(event, "Успешно добавила " + foodName + " в дневник питания");
-                    } else if (commandWord.matches(kcalPhrasePattern + ".*")) {
-                        // попроси дневник питания добавить вафли 100 грамм 60 калорий
-                        float grams = getGrams(commandWords);
-                        if (grams <= 0) {
-                            return getResponse(event, INVALID_COMMAND_RESPONSE);
-                        }
-                        FoodRecord foodRecord = apiHttpRequests.findFood(translatedFood, grams, Float.parseFloat(commandWords.get(commandWords.indexOf(commandWord) - 1)));
-                        try {
-                            databaseApi.addFood(foodRecord);
-                        } catch (DatabaseApiException e) {
-                            return getResponse(event, SQL_EXCEPTION_RESPONSE);
-                        }
-                        if (foodRecord.getKcal() == 0 && foodRecord.getCarbohydrate() == 0) {
-                            return getResponse(event, "К сожалению, " + translatedFood + " или как вы называете " + foodName + " нет в моём списке");
-                        }
-                        return getResponse(event, "Успешно добавила " + foodName + " в дневник питания");
-                    }
-                }
-                // попроси дневник питания добавить морковь 100 грамм
                 float grams = getGrams(commandWords);
                 if (grams <= 0) {
                     return getResponse(event, INVALID_COMMAND_RESPONSE);
                 }
-                FoodRecord foodRecord = apiHttpRequests.findBasicFood(translatedFood, grams);
-                try {
-                    databaseApi.addFood(foodRecord);
-                } catch (DatabaseApiException e) {
-                    return getResponse(event, SQL_EXCEPTION_RESPONSE);
+
+                for (String commandWord : commandWords) {
+                    if (commandWord.matches(kcalPhrasePattern + ".*")) {
+                        // попроси дневник питания добавить вафли 100 грамм 60 калорий
+                        FoodRecord foodRecord = foodSearch.findFood(foodName, grams, Float.parseFloat(commandWords.get(commandWords.indexOf(commandWord) - 1)));
+                        return saveFoodAndgetAddFoodResponse(foodRecord, event, foodName, foodRecord == null ? null : foodRecord.getName());
+                    }
                 }
-                if (foodRecord.getKcal() == 0 && foodRecord.getCarbohydrate() == 0) {
-                    return getResponse(event, "К сожалению, " + translatedFood + " или как вы называете " + foodName + " нет в моём списке");
-                }
-                return getResponse(event, "Успешно добавила " + foodName + " в дневник питания");
+                // попроси дневник питания добавить морковь/блины 100 грамм
+                FoodRecord foodRecord = foodSearch.findFood(foodName, grams);
+                return saveFoodAndgetAddFoodResponse(foodRecord, event, foodName, foodRecord == null ? null : foodRecord.getName());
+
             } else if (word.equals("сколько")) {
                 int dateIdx = 0;
+
                 for (String commandWord : commandWords) {
                     List<FoodRecord> foodRecords;
                     if (commandWord.matches(numberPattern)) {
@@ -140,6 +95,7 @@ public class Handler implements Function<Event, Response> {
                         } catch (DatabaseApiException e) {
                             return getResponse(event, SQL_EXCEPTION_RESPONSE);
                         }
+
                     } else if (commandWord.matches("сегодня|вчера|позавчера")) {
                         // спроси дневник питания сколько я съела сегодня / вчера / позавчера
                         try {
@@ -153,7 +109,13 @@ public class Handler implements Function<Event, Response> {
                         return getResponse(event, FoodRecordUtils.getFoodStats(foodRecords));
                     }
                 }
-
+            } else if (word.equals("удалить")) {
+                try {
+                    databaseApi.deleteFood();
+                    return getResponse(event, "Успешно удалила последнюю запись из дневника питания");
+                } catch (DatabaseApiException e) {
+                    return getResponse(event, SQL_EXCEPTION_RESPONSE);
+                }
             }
         }
         return getResponse(event, INVALID_COMMAND_RESPONSE);
@@ -209,6 +171,18 @@ public class Handler implements Function<Event, Response> {
             }
         }
         return 0;
+    }
+
+    private Response saveFoodAndgetAddFoodResponse(FoodRecord foodRecord, Event event, String commandFoodName, String fatSecretFoodName) {
+        if (foodRecord == null) {
+            return getResponse(event, "К сожалению, " + commandFoodName + " найти не удалось");
+        }
+        try {
+            databaseApi.addFood(foodRecord);
+        } catch (DatabaseApiException e) {
+            return getResponse(event, SQL_EXCEPTION_RESPONSE);
+        }
+        return getResponse(event, "Успешно добавила " + fatSecretFoodName + " или как вы это называете " + commandFoodName + " в дневник питания");
     }
 }
 

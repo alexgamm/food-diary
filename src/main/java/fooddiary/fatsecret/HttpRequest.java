@@ -1,11 +1,11 @@
-package fatsecret;
+package fooddiary.fatsecret;
 
 import kong.unirest.Unirest;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-public class Request {
+public class HttpRequest {
     private final static String SEARCH_URL = System.getenv("FAT_SECRET_SEARCH_URL");
 
     public List<Food> search(@NotNull String query) {

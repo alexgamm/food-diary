@@ -1,8 +1,10 @@
-package fatsecret;
+package fooddiary.fatsecret;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
+@Getter
 public class Food {
     private final String name;
     private final float kcal;

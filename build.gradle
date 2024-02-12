@@ -10,6 +10,7 @@ version '1.0'
 
 repositories {
     mavenCentral()
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -17,8 +18,9 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
     implementation 'com.konghq:unirest-java:3.14.5'
     implementation 'org.jetbrains:annotations:24.1.0'
-    implementation 'com.google.cloud:google-cloud-translate:2.6.0'
     implementation 'org.jsoup:jsoup:1.15.3'
+    implementation 'com.github.vdybysov:ydb-client:main-SNAPSHOT'
+
     implementation 'ch.qos.logback:logback-classic:1.4.14'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
     testImplementation 'org.mockito:mockito-core:5.10.0'
@@ -81,10 +83,9 @@ tasks.register('deploy', Exec) {
             '--execution-timeout', deployExecutionTimeout,
             '--source-path', tasks.buildZip.archiveFile.get().asFile.absolutePath,
             '--service-account-id', env.SERVICE_ACCOUNT_ID.value,
-            '--environment', "USDA_API_KEY=${env.USDA_API_KEY.value}",
-            '--environment', "GOOGLE_API_KEY=${env.GOOGLE_API_KEY.value}",
             '--environment', "GET_FOOD_FUNCTION_ID=${env.GET_FOOD_FUNCTION_ID.value}",
             '--environment', "ADD_FOOD_FUNCTION_ID=${env.ADD_FOOD_FUNCTION_ID.value}",
+            '--environment', "DELETE_FOOD_FUNCTION_ID=${env.DELETE_FOOD_FUNCTION_ID.value}",
             '--environment', "FAT_SECRET_SEARCH_URL=${env.FAT_SECRET_SEARCH_URL.value}"
 
 }

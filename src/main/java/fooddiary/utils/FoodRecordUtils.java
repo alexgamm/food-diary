@@ -12,17 +12,17 @@ public class FoodRecordUtils {
         float overallKcal = 0f;
         String foodNames = "";
         for (FoodRecord foodRecord : foodRecords) {
-            overallFat += foodRecord.getTotalFat();
+            overallFat += foodRecord.getFat();
             overallProtein += foodRecord.getProtein();
             overallCarbs += foodRecord.getCarbohydrate();
             overallKcal += foodRecord.getKcal();
-            foodNames += foodRecord.getFoodName() + ", ";
+            foodNames += foodRecord.getName() + ", ";
         }
         float PfcSum = overallFat + overallCarbs + overallProtein;
-        return "Сегодня вы съели " + (long) overallKcal + " калорий. "
+        return "Вы съели " + (long) overallKcal + " калорий. "
                 + (long) ((overallProtein / PfcSum) * 100) + " % белка, "
                 + (long) ((overallFat / PfcSum) * 100) + " % жиров, "
                 + (long) ((overallCarbs / PfcSum) * 100) + " % углеводов. "
-                + "Сегодня вы ели: " + foodNames;
+                + "Вы ели: " + foodNames;
     }
 }
