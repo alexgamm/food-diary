@@ -19,7 +19,8 @@ dependencies {
     implementation 'com.konghq:unirest-java:3.14.5'
     implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'org.jsoup:jsoup:1.15.3'
-    implementation 'com.github.vdybysov:ydb-client:main-SNAPSHOT'
+    implementation 'com.yandex.cloud:java-sdk-serverless:2.6.4'
+    implementation 'com.github.vdybysov:ydb-client:d9cbe01a7e'
 
     implementation 'ch.qos.logback:logback-classic:1.4.14'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
@@ -32,6 +33,22 @@ publishing {
             from components.java
 
             pom.withXml {
+                def buildNode = asNode().appendNode('build')
+                def pluginsNode = buildNode.appendNode('plugins')
+                def pluginNode = pluginsNode.appendNode('plugin')
+
+                pluginNode.appendNode('groupId', 'org.apache.maven.plugins')
+                pluginNode.appendNode('artifactId', 'maven-compiler-plugin')
+
+                def configurationNode = pluginNode.appendNode('configuration')
+                configurationNode.appendNode('source', '17')
+                configurationNode.appendNode('target', '17')
+
+                asNode().appendNode('repositories').appendNode('repository').with {
+                    appendNode('id', 'jitpack')
+                    appendNode('name', 'Jitpack')
+                    appendNode('url', 'https://jitpack.io')
+                }
                 asNode().dependencies.dependency.each {
                     it.scope*.value = 'compile'
                 }
@@ -83,9 +100,7 @@ tasks.register('deploy', Exec) {
             '--execution-timeout', deployExecutionTimeout,
             '--source-path', tasks.buildZip.archiveFile.get().asFile.absolutePath,
             '--service-account-id', env.SERVICE_ACCOUNT_ID.value,
-            '--environment', "GET_FOOD_FUNCTION_ID=${env.GET_FOOD_FUNCTION_ID.value}",
-            '--environment', "ADD_FOOD_FUNCTION_ID=${env.ADD_FOOD_FUNCTION_ID.value}",
-            '--environment', "DELETE_FOOD_FUNCTION_ID=${env.DELETE_FOOD_FUNCTION_ID.value}",
+            '--environment', "DB_CONNECTION_STRING=${env.DB_CONNECTION_STRING.value}",
             '--environment', "FAT_SECRET_SEARCH_URL=${env.FAT_SECRET_SEARCH_URL.value}"
 
 }

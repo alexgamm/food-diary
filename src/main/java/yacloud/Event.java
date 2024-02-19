@@ -7,6 +7,6 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true, fluent = true)
 public class Event {
     private Request request;
-    private Object session;
+    private Session session;
     private Object version;
 }

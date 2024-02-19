@@ -1,17 +1,17 @@
 package fooddiary;
 
-import fooddiary.database.DatabaseApi;
+import com.github.vdybysov.ydb.exception.YdbClientException;
+import fooddiary.database.Database;
 import fooddiary.database.FoodRecord;
-import fooddiary.database.exception.DatabaseApiException;
 import fooddiary.fatsecret.FoodSearch;
 import org.junit.jupiter.api.Test;
 import yacloud.Event;
 import yacloud.Request;
 import yacloud.Response;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Month;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,16 +20,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-public class HandlerTest {
+public class SkillTest {
 
     @Test
     public void invalidCommand_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null);
+        Skill skill = new Skill(null, null);
         Event event = new Event()
                 .request(new Request().command("жаренная картошка 100"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals("Упс, что-то не так с твоим запросом. Скажи еще раз", response.response().text());
     }
@@ -37,11 +37,11 @@ public class HandlerTest {
     @Test
     public void addFoodWithoutFoodName_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null);
+        Skill skill = new Skill(null, null);
         Event event = new Event()
                 .request(new Request().command("добавить 100 грамм"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals("Упс, что-то не так с твоим запросом. Скажи еще раз", response.response().text());
     }
@@ -49,11 +49,11 @@ public class HandlerTest {
     @Test
     public void addFoodWithoutCaloriesWithoutGramWord_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null);
+        Skill skill = new Skill(null, null);
         Event event = new Event()
                 .request(new Request().command("добавить жаренная картошка 100"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals("Упс, что-то не так с твоим запросом. Скажи еще раз", response.response().text());
     }
@@ -61,11 +61,11 @@ public class HandlerTest {
     @Test
     public void addFoodWithoutGramWord_getInvalidCommandResponse() {
         //arrange
-        Handler handler = new Handler(null, null);
+        Skill skill = new Skill(null, null);
         Event event = new Event()
                 .request(new Request().command("добавить жаренная картошка 100"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals("Упс, что-то не так с твоим запросом. Скажи еще раз", response.response().text());
     }
@@ -75,14 +75,14 @@ public class HandlerTest {
         //arrange
         FoodSearch foodSearch = mock(FoodSearch.class);
         when(foodSearch.findFood(eq("тапок"), eq(100))).thenReturn(null);
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        Handler handler = new Handler(databaseApi, foodSearch);
+        Database database = mock(Database.class);
+        Skill skill = new Skill(database, foodSearch);
         Event event = new Event()
                 .request(new Request().command("добавить тапок 100 грамм"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verifyNoInteractions(databaseApi);
+        verifyNoInteractions(database);
         assertEquals(
                 "К сожалению, тапок найти не удалось",
                 response.response().text()
@@ -90,28 +90,28 @@ public class HandlerTest {
     }
 
     @Test
-    public void addFoodWithoutCalories_saveFoodAndSuccessfulResponse() throws DatabaseApiException {
+    public void addFoodWithoutCalories_saveFoodAndSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         FoodSearch foodSearch = mock(FoodSearch.class);
         when(foodSearch.findFood(eq("грибочки"), eq(150f))).thenReturn(new FoodRecord(
                 null,
                 "грибы",
                 null,
-                150,
-                50,
-                0,
-                3,
-                10
+                150f,
+                50f,
+                0f,
+                3f,
+                10f
         ));
 
-        Handler handler = new Handler(databaseApi, foodSearch);
+        Skill skill = new Skill(database, foodSearch);
         Event event = new Event()
                 .request(new Request().command("добавить грибочки 150 грамм"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).addFood(any());
+        verify(database).addFood(any());
         assertEquals(
                 "Успешно добавила грибы или как вы это называете грибочки в дневник питания",
                 response.response().text()
@@ -123,14 +123,14 @@ public class HandlerTest {
         //arrange
         FoodSearch foodSearch = mock(FoodSearch.class);
         when(foodSearch.findFood(eq("тапок"), eq(100f), eq(50f))).thenReturn(null);
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        Handler handler = new Handler(databaseApi, foodSearch);
+        Database database = mock(Database.class);
+        Skill skill = new Skill(database, foodSearch);
         Event event = new Event()
                 .request(new Request().command("добавить тапок 100 грамм 50 калорий"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verifyNoInteractions(databaseApi);
+        verifyNoInteractions(database);
         assertEquals(
                 "К сожалению, тапок найти не удалось",
                 response.response().text()
@@ -138,143 +138,146 @@ public class HandlerTest {
     }
 
     @Test
-    public void addFoodWithCalories_saveFoodAndSuccessfulResponse() throws DatabaseApiException {
+    public void addFoodWithCalories_saveFoodAndSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         FoodSearch foodSearch = mock(FoodSearch.class);
         when(foodSearch.findFood(eq("вафли"), eq(100f), eq(300f))).thenReturn(new FoodRecord(
                 null,
                 "вафли молочные реки",
                 null,
-                100,
-                300,
-                0,
-                3,
-                10
+                100f,
+                300f,
+                0f,
+                3f,
+                10f
         ));
-        Handler handler = new Handler(databaseApi, foodSearch);
+        Skill skill = new Skill(database, foodSearch);
         Event event = new Event()
                 .request(new Request().command("добавить вафли 100 грамм 300 калорий"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
 
         assertEquals(
                 "Успешно добавила вафли молочные реки или как вы это называете вафли в дневник питания",
                 response.response().text()
         );
-        verify(databaseApi).addFood(any());
+        verify(database).addFood(any());
     }
 
 
     @Test
-    public void findEmptyFoodStatsWithDayMonth_getDatabaseErrorResponse() throws DatabaseApiException {
+    public void findEmptyFoodStatsWithDayMonth_getDatabaseErrorResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), Month.NOVEMBER, 15);
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null);
+        LocalDate actualDate = date.isAfter(LocalDate.now()) ? date.minusYears(1) : date;
+        when(database.findFoodRecordsByDate(eq(actualDate))).thenReturn(List.of());
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(actualDate);
         assertEquals(
-                "К сожалению, ничего найти не удалось",
+                "В этот день вы не вели дневник",
                 response.response().text()
         );
     }
 
     @Test
-    public void getEmptyFoodStatsWithFullDate_getDatabaseErrorResponse() throws DatabaseApiException {
+    public void getEmptyFoodStatsWithFullDate_getDatabaseErrorResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(2022, Month.NOVEMBER, 15);
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября 2022 года"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "К сожалению, ничего найти не удалось",
+                "В этот день вы не вели дневник",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsWithDayMonth_getSuccessfulResponse() throws DatabaseApiException {
+    public void findFoodStatsWithDayMonth_getSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), Month.NOVEMBER, 15);
         List<FoodRecord> foodRecords = List.of(new FoodRecord(
                 UUID.randomUUID().toString(),
                 "каша",
-                new Date(),
-                100,
-                100,
-                0,
-                0,
-                1
+                Instant.now(),
+                100f,
+                100f,
+                0f,
+                0f,
+                1f
         ));
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null);
+        LocalDate actualDate = date.isAfter(LocalDate.now()) ? date.minusYears(1) : date;
+        when(database.findFoodRecordsByDate(eq(actualDate))).thenReturn(foodRecords);
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(actualDate);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
+                "Вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Вы ели: каша",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsWithFullDate_getSuccessfulResponse() throws DatabaseApiException {
+    public void findFoodStatsWithFullDate_getSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(2022, Month.NOVEMBER, 15);
         List<FoodRecord> foodRecords = List.of(new FoodRecord(
                 UUID.randomUUID().toString(),
                 "каша",
-                new Date(),
-                100,
-                100,
-                0,
-                0,
-                1
+                Instant.now(),
+                100f,
+                100f,
+                0f,
+                0f,
+                1f
         ));
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября 2022 года"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
+                "Вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Вы ели: каша",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsWithDateMonthWhenDatabaseApiException_getDatabaseApiExceptionResponse() throws DatabaseApiException {
+    public void findFoodStatsWithDateMonthWhenYdbClientException_getYdbClientExceptionResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), Month.NOVEMBER, 15);
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenThrow(DatabaseApiException.class);
-        String expectedMessage = "Что-то база данных шалит. Повтори запрос еще раз";
-        Handler handler = new Handler(databaseApi, null);
+        LocalDate actualDate = date.isAfter(LocalDate.now()) ? date.minusYears(1) : date;
+        when(database.findFoodRecordsByDate(eq(actualDate))).thenThrow(YdbClientException.class);
+        String expectedMessage = "База данных сейчас недоступна. Повторите попытку позже";
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела 15 ноября"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals(
                 expectedMessage,
@@ -283,123 +286,123 @@ public class HandlerTest {
     }
 
     @Test
-    public void findFoodStatsToday_getSuccessfulResponse() throws DatabaseApiException {
+    public void findFoodStatsToday_getSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().getDayOfMonth());
         List<FoodRecord> foodRecords = List.of(new FoodRecord(
                 UUID.randomUUID().toString(),
                 "каша",
-                new Date(),
-                100,
-                100,
-                0,
-                0,
-                1
+                Instant.now(),
+                100f,
+                100f,
+                0f,
+                0f,
+                1f
         ));
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
+                "Вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Вы ели: каша",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsYesterday_getSuccessfulResponse() throws DatabaseApiException {
+    public void findFoodStatsYesterday_getSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().minusDays(1).getDayOfMonth());
         List<FoodRecord> foodRecords = List.of(new FoodRecord(
                 UUID.randomUUID().toString(),
                 "каша",
-                new Date(),
-                100,
-                100,
-                0,
-                0,
-                1
+                Instant.now(),
+                100f,
+                100f,
+                0f,
+                0f,
+                1f
         ));
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела вчера"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
+                "Вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Вы ели: каша",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsTheDayBeforeYesterday_getSuccessfulResponse() throws DatabaseApiException {
+    public void findFoodStatsTheDayBeforeYesterday_getSuccessfulResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
-        LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().minusDays(2).getDayOfMonth());
+        Database database = mock(Database.class);
+        LocalDate date = LocalDate.now().minusDays(2);
         List<FoodRecord> foodRecords = List.of(new FoodRecord(
                 UUID.randomUUID().toString(),
                 "каша",
-                new Date(),
-                100,
-                100,
-                0,
-                0,
-                1
+                Instant.now(),
+                100f,
+                100f,
+                0f,
+                0f,
+                1f
         ));
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(foodRecords);
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела позавчера"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "Сегодня вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Сегодня вы ели: каша, ",
+                "Вы съели 100 калорий. 0 % белка, 0 % жиров, 100 % углеводов. Вы ели: каша",
                 response.response().text()
         );
     }
 
     @Test
-    public void getEmptyFoodStatsToday_getDatabaseErrorResponse() throws DatabaseApiException {
+    public void getEmptyFoodStatsToday_getDatabaseErrorResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().getDayOfMonth());
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenReturn(List.of());
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
-        verify(databaseApi).findFoodRecordsByDate(date);
+        verify(database).findFoodRecordsByDate(date);
         assertEquals(
-                "К сожалению, ничего найти не удалось",
+                "В этот день вы не вели дневник",
                 response.response().text()
         );
     }
 
     @Test
-    public void findFoodStatsTodayWhenDatabaseApiException_getDatabaseApiExceptionResponse() throws DatabaseApiException {
+    public void findFoodStatsTodayWhenYdbClientException_getYdbClientExceptionResponse() throws YdbClientException {
         //arrange
-        DatabaseApi databaseApi = mock(DatabaseApi.class);
+        Database database = mock(Database.class);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonth(), LocalDate.now().getDayOfMonth());
-        when(databaseApi.findFoodRecordsByDate(eq(date))).thenThrow(new DatabaseApiException());
-        String expectedMessage = "Что-то база данных шалит. Повтори запрос еще раз";
-        Handler handler = new Handler(databaseApi, null);
+        when(database.findFoodRecordsByDate(eq(date))).thenThrow(new YdbClientException(null));
+        String expectedMessage = "База данных сейчас недоступна. Повторите попытку позже";
+        Skill skill = new Skill(database, null);
         Event event = new Event()
                 .request(new Request().command("сколько я съела сегодня"));
         //act
-        Response response = handler.apply(event);
+        Response response = skill.getResponse(event);
         //assert
         assertEquals(
                 expectedMessage,

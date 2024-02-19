@@ -1,19 +1,31 @@
 package fooddiary.database;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import com.github.vdybysov.ydb.typed.annotation.Mapper;
+import com.github.vdybysov.ydb.typed.mapper.BytesToStringMapper;
+import com.github.vdybysov.ydb.typed.mapper.FloatMapper;
+import com.github.vdybysov.ydb.typed.mapper.TextToStringMapper;
+import com.github.vdybysov.ydb.typed.mapper.TimestampToInstantMapper;
 
-import java.util.Date;
+import java.time.Instant;
 
-@RequiredArgsConstructor
-@Getter
-public class FoodRecord {
-    private final String id;
-    private final String name;
-    private final Date date;
-    private final float grams;
-    private final float kcal;
-    private final float fat;
-    private final float protein;
-    private final float carbohydrate;
+public record FoodRecord(
+        @Mapper(BytesToStringMapper.class)
+        String id,
+        @Mapper(BytesToStringMapper.class)
+        String personId,
+        @Mapper(TextToStringMapper.class)
+        String name,
+        @Mapper(TimestampToInstantMapper.class)
+        Instant date,
+        @Mapper(FloatMapper.class)
+        Float grams,
+        @Mapper(FloatMapper.class)
+        Float kcal,
+        @Mapper(FloatMapper.class)
+        Float fat,
+        @Mapper(FloatMapper.class)
+        Float protein,
+        @Mapper(FloatMapper.class)
+        Float carbohydrate
+) {
 }
