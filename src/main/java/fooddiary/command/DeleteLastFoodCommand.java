@@ -1,8 +1,9 @@
 package fooddiary.command;
 
 import com.github.vdybysov.ydb.exception.YdbClientException;
-import fooddiary.PersonRequest;
+import fooddiary.model.PersonRequest;
 import fooddiary.database.Database;
+import fooddiary.database.FoodRecord;
 import fooddiary.utils.Responses;
 import lombok.RequiredArgsConstructor;
 
@@ -12,12 +13,16 @@ public class DeleteLastFoodCommand implements Command {
 
     @Override
     public String getResponse(PersonRequest personRequest) {
+        FoodRecord foodRecord;
         try {
-            database.deleteLastFood(personRequest.getPersonId());
-            return Responses.successfulFoodDelete();
+            foodRecord = database.deleteLastFood(personRequest.getPersonId());
         } catch (YdbClientException e) {
             return Responses.dbError();
         }
+        if (foodRecord == null) {
+            return Responses.unsuccessfulFoodDelete();
+        }
+        return Responses.successfulFoodDelete(foodRecord.name());
     }
 
     @Override

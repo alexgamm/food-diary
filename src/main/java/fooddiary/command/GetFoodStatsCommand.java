@@ -1,7 +1,7 @@
 package fooddiary.command;
 
 import com.github.vdybysov.ydb.exception.YdbClientException;
-import fooddiary.PersonRequest;
+import fooddiary.model.PersonRequest;
 import fooddiary.database.Database;
 import fooddiary.database.FoodRecord;
 import fooddiary.utils.DateParser;
@@ -9,6 +9,7 @@ import fooddiary.utils.EatenFoodStats;
 import fooddiary.utils.Responses;
 import lombok.RequiredArgsConstructor;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -19,7 +20,8 @@ public class GetFoodStatsCommand implements Command {
 
     @Override
     public String getResponse(PersonRequest personRequest) {
-        LocalDate date = DateParser.parse(personRequest.getRequest());
+        DateParser dateParser = new DateParser(Clock.systemUTC());
+        LocalDate date = dateParser.parse(personRequest.request());
         List<FoodRecord> foodRecords;
         try {
             foodRecords = database.findFoodRecordsByDate(date, personRequest.getPersonId());

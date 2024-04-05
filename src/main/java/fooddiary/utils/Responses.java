@@ -28,13 +28,18 @@ public interface Responses {
         );
     }
 
-    static String successfulFoodDelete() {
-        return "Успешно удалила последнюю запись из дневника питания";
+    static String successfulFoodDelete(String foodName) {
+        return format("Успешно удалила {0} из дневника питания", foodName);
+    }
+
+    static String unsuccessfulFoodDelete() {
+        return "К сожалению, найти последнюю запись не удалось";
     }
 
     static String eatenFoodStats(EatenFoodStats eatenFoodStats) {
         return format(
-                "Вы съели {0} калорий. {1} % белка, {2} % жиров, {3} % углеводов. Вы ели: {4}",
+                "Вы съели {0,number,#} калорий. " +
+                        "{1,number,#} % белка, {2,number,#} % жиров, {3,number,#} % углеводов. Вы ели: {4}",
                 eatenFoodStats.overallKcal(),
                 eatenFoodStats.proteinPercentage(),
                 eatenFoodStats.fatPercentage(),

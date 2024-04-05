@@ -3,10 +3,17 @@ plugins {
     id 'maven-publish'
     id 'co.uzzu.dotenv.gradle' version '4.0.0'
     id 'io.freefair.lombok' version '8.4'
+    id 'org.springframework.boot' version '3.2.2'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.graalvm.buildtools.native' version '0.9.28'
 }
 
 group 'fooddiary'
-version '1.0'
+version '0.0.1'
+
+java {
+    sourceCompatibility = '17'
+}
 
 repositories {
     mavenCentral()
@@ -14,17 +21,26 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'org.projectlombok:lombok:1.18.24'
-    annotationProcessor 'org.projectlombok:lombok:1.18.24'
-    implementation 'com.konghq:unirest-java:3.14.5'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'org.jsoup:jsoup:1.15.3'
-    implementation 'com.yandex.cloud:java-sdk-serverless:2.6.4'
-    implementation 'com.github.vdybysov:ydb-client:d9cbe01a7e'
+    implementation 'com.github.vdybysov:ydb-client:0.0.1'
 
-    implementation 'ch.qos.logback:logback-classic:1.4.14'
-    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mockito:mockito-core:5.10.0'
+}
+
+tasks.named("bootBuildImage") {
+    builder = "gcr.io/paketo-buildpacks/builder:base"
+    environment = [
+            'BP_NATIVE_IMAGE': 'true',
+            'BP_NATIVE_IMAGE_BUILD_ARGUMENTS': '--trace-class-initialization=org.apache.commons.logging.LogFactory'
+    ]
+    imageName = "cr.yandex/crpaji3otrgc6rl6gms6/${project.name}:${project.version}"
 }
 
 publishing {

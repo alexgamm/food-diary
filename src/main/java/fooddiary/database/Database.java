@@ -3,15 +3,20 @@ package fooddiary.database;
 import com.github.vdybysov.ydb.client.YdbClientBuilder;
 import com.github.vdybysov.ydb.exception.YdbClientException;
 import com.github.vdybysov.ydb.typed.TypedYdbClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import fooddiary.yacloud.CloudAuthProvider;
 
 import java.time.LocalDate;
 import java.util.List;
 
+@Component
 public class Database {
 
     private final TypedYdbClient client;
 
-    public Database(String connectionString, String iamToken) {
+    public Database(@Value("${db.connection-string}") String connectionString, CloudAuthProvider cloudAuthProvider) {
+        String iamToken = cloudAuthProvider.getIamToken();
         this.client = new TypedYdbClient(YdbClientBuilder.forConnectionString(connectionString, iamToken));
     }
 
@@ -45,15 +50,18 @@ public class Database {
         ).stream().toList();
     }
 
-    public boolean deleteLastFood(String personId) throws YdbClientException {
-        String query = "SELECT * FROM my_foods WHERE personId is null ORDER BY `date` DESC LIMIT 1;";
+    public FoodRecord deleteLastFood(String personId) throws YdbClientException {
+        String query = """
+                DECLARE $personId AS String;
+                SELECT * FROM my_foods WHERE personId = $personId ORDER BY `date` DESC LIMIT 1;
+                """.stripIndent();
         FoodRecord foodRecord = client.executeQuery(
                 query,
-                personId,
+                new PersonIdParam(personId),
                 FoodRecord.class
         ).stream().findFirst().orElse(null);
         if (foodRecord == null) {
-            return false;
+            return null;
         }
         client.executeQuery("""
                         DECLARE $id as String;
@@ -61,6 +69,6 @@ public class Database {
                         """.stripIndent(),
                 foodRecord
         );
-        return true;
+        return foodRecord;
     }
 }

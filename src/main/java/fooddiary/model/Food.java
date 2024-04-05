@@ -1,4 +1,4 @@
-package fooddiary.fatsecret;
+package fooddiary.model;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

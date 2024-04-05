@@ -1,23 +1,16 @@
-package fooddiary;
+package fooddiary.model;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-@RequiredArgsConstructor
-@Getter
-public class PersonRequest {
-    @NotNull
-    private final String userId;
-    @Nullable
-    private final String firstName;
-    @NotNull
-    private final String request;
-
+public record PersonRequest(
+        @NotNull String userId,
+        @Nullable String firstName,
+        @NotNull String request
+) {
     public String getPersonId() {
         String personId = userId;
         if (firstName != null && !firstName.isEmpty()) {

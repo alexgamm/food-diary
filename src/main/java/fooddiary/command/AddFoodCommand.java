@@ -1,39 +1,48 @@
 package fooddiary.command;
 
 import com.github.vdybysov.ydb.exception.YdbClientException;
-import fooddiary.PersonRequest;
+import fooddiary.model.PersonRequest;
 import fooddiary.database.Database;
 import fooddiary.database.FoodRecord;
-import fooddiary.fatsecret.FoodSearch;
+import fooddiary.service.FoodSearchService;
 import fooddiary.utils.Responses;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RequiredArgsConstructor
 public class AddFoodCommand implements Command {
-    private final FoodSearch foodSearch;
+    private final FoodSearchService foodSearch;
     private final Database database;
 
     @Override
     public String getResponse(PersonRequest personRequest) {
         ParsedFood food;
         try {
-            food = ParsedFood.parse(personRequest.getRequest());
+            food = ParsedFood.parse(personRequest.request());
         } catch (IllegalArgumentException e) {
             return Responses.invalidCommand();
         }
-        FoodRecord foodRecord = null;
-        if (food.kcal() != null) {
-            // попроси дневник питания добавить вафли 100 грамм 60 калорий
-            foodRecord = foodSearch.findFood(food.name(), food.grams(), food.kcal(), personRequest.getPersonId());
-        } else {
-            foodRecord = foodSearch.findFood(food.name(), food.grams(), personRequest.getPersonId());
-        }
+        // попроси дневник питания добавить вафли 100 грамм 60 калорий
         // попроси дневник питания добавить морковь/блины 100 грамм
+        FoodRecord foodRecord = foodSearch.search(food.name(), food.kcal())
+                .map(searchedFood -> new FoodRecord(
+                        UUID.randomUUID().toString(),
+                        personRequest.getPersonId(),
+                        searchedFood.getName(),
+                        Instant.now(),
+                        food.grams(),
+                        searchedFood.getKcal() / 100 * food.grams(),
+                        searchedFood.getFat() / 100 * food.grams(),
+                        searchedFood.getProtein() / 100 * food.grams(),
+                        searchedFood.getCarbs() / 100 * food.grams()
+                ))
+                .orElse(null);
         if (foodRecord == null) {
             return Responses.foodNotFound(food.name());
         }

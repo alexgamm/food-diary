@@ -1,20 +1,24 @@
 package fooddiary.utils.date;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.MonthDay;
-import java.time.Year;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+@Getter
+@RequiredArgsConstructor
 public class PartialDate implements DateVariant {
 
     public static final DateTimeFormatter DATE_MONTH_FORMATTER = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"));
+    private final Clock clock;
 
     @Override
     public LocalDate parse(String text) {
-        LocalDate date = MonthDay.parse(text, DATE_MONTH_FORMATTER).atYear(LocalDate.now().getYear());
-        return date.isAfter(LocalDate.now()) ? date.minusYears(1) : date;
+        LocalDate today = LocalDate.now(getClock());
+        LocalDate date = MonthDay.parse(text, DATE_MONTH_FORMATTER).atYear(today.getYear());
+        return date.isAfter(today) ? date.minusYears(1) : date;
     }
 
     @Override

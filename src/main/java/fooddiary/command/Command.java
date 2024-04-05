@@ -1,6 +1,6 @@
 package fooddiary.command;
 
-import fooddiary.PersonRequest;
+import fooddiary.model.PersonRequest;
 
 public interface Command {
 

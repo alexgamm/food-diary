@@ -1,5 +1,6 @@
 package fooddiary.utils.date;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -9,6 +10,7 @@ public interface DateVariant {
     LocalDate parse(String text);
 
     String getPattern();
+    Clock getClock();
 
     default boolean isRelevant(String text) {
         return getMatcher(text).find();
